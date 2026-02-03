@@ -1,19 +1,17 @@
-// Импорт Firebase модулей
-import { 
-    auth, 
-    database, 
-    GoogleAuthProvider, 
-    signInWithPopup, 
-    signOut,
-    ref, 
-    set, 
-    onValue, 
-    push, 
-    update, 
-    remove, 
-    get, 
-    child 
-} from './firebase-config.js';
+// Конфигурация Firebase
+const firebaseConfig = {
+    apiKey: "AIzaSyC-rP_14WecIFKWJHGvlszK16voEKNQ1Gw",
+    authDomain: "chessproject-3d878.firebaseapp.com",
+    projectId: "chessproject-3d878",
+    storageBucket: "chessproject-3d878.firebasestorage.app",
+    messagingSenderId: "735951507631",
+    appId: "1:735951507631:web:587083ce4d0f34e01f845a"
+};
+
+// Инициализация Firebase
+const app = firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const database = firebase.database();
 
 // Глобальные переменные приложения
 let currentUser = null;
@@ -25,9 +23,9 @@ let isWhite = true;
 let gameState = {
     board: [],
     turn: 'white',
-    whiteTime: 900, // 15 минут в секундах
+    whiteTime: 900,
     blackTime: 900,
-    gameStatus: 'waiting', // waiting, active, finished
+    gameStatus: 'waiting',
     winner: null,
     drawOffered: false,
     rematchOffered: false
@@ -149,10 +147,10 @@ function setupEventListeners() {
 
 // Аутентификация через Google
 async function signInWithGoogle() {
-    const provider = new GoogleAuthProvider();
+    const provider = new firebase.auth.GoogleAuthProvider();
     
     try {
-        const result = await signInWithPopup(auth, provider);
+        const result = await auth.signInWithPopup(provider);
         toastr.success(`Добро пожаловать, ${result.user.displayName}!`);
     } catch (error) {
         console.error('Ошибка аутентификации:', error);
@@ -194,7 +192,7 @@ function signOutUser() {
         showScreen('auth-screen');
     } else {
         // Для пользователя Firebase выходим из системы
-        signOut(auth).then(() => {
+        auth.signOut().then(() => {
             toastr.info('Вы вышли из системы');
         }).catch(error => {
             console.error('Ошибка выхода:', error);
@@ -213,6 +211,7 @@ function showScreen(screenId) {
     const targetScreen = document.getElementById(screenId);
     if (targetScreen) {
         targetScreen.classList.add('active');
+        targetScreen.classList.add('fade-in');
     }
 }
 
@@ -246,7 +245,7 @@ function createNewGame() {
     gameState.blackTime = timeInSeconds;
     
     // Создаем игру в базе данных
-    const gameRef = ref(database, 'games/' + gameCode);
+    currentGameRef = database.ref('games/' + gameCode);
     
     const gameData = {
         code: gameCode,
@@ -266,15 +265,12 @@ function createNewGame() {
         chat: []
     };
     
-    set(gameRef, gameData)
+    currentGameRef.set(gameData)
         .then(() => {
             // Показываем экран с кодом приглашения
             document.getElementById('game-code-display').textContent = gameCode;
             document.getElementById('game-invite-container').style.display = 'block';
             document.getElementById('start-game-btn').disabled = true;
-            
-            // Сохраняем ссылку на игру
-            currentGameRef = gameRef;
             
             // Слушаем изменения в игре
             listenToGameChanges(gameCode);
@@ -314,7 +310,7 @@ function copyGameCode() {
 function startGame() {
     if (!currentGameRef) return;
     
-    update(currentGameRef, {
+    currentGameRef.update({
         status: 'active',
         startedAt: Date.now()
     })
@@ -331,7 +327,7 @@ function startGame() {
 // Отменить игру
 function cancelGame() {
     if (currentGameRef) {
-        remove(currentGameRef)
+        currentGameRef.remove()
             .then(() => {
                 toastr.info('Игра отменена');
                 currentGameRef = null;
@@ -356,10 +352,9 @@ function joinGameByCode() {
     }
     
     gameCode = codeInput;
+    currentGameRef = database.ref('games/' + gameCode);
     
-    const gameRef = ref(database, 'games/' + gameCode);
-    
-    get(gameRef).then(snapshot => {
+    currentGameRef.once('value').then(snapshot => {
         if (snapshot.exists()) {
             const gameData = snapshot.val();
             
@@ -377,13 +372,13 @@ function joinGameByCode() {
             // Определяем цвет игрока
             if (!gameData.whitePlayer) {
                 isWhite = true;
-                update(gameRef, {
+                currentGameRef.update({
                     whitePlayer: currentUser.uid,
                     whitePlayerName: currentUser.displayName
                 });
             } else if (!gameData.blackPlayer) {
                 isWhite = false;
-                update(gameRef, {
+                currentGameRef.update({
                     blackPlayer: currentUser.uid,
                     blackPlayerName: currentUser.displayName
                 });
@@ -394,14 +389,11 @@ function joinGameByCode() {
             
             // Если оба игрока на месте, начинаем игру
             if (gameData.whitePlayer && gameData.blackPlayer) {
-                update(gameRef, {
+                currentGameRef.update({
                     status: 'active',
                     startedAt: Date.now()
                 });
             }
-            
-            // Сохраняем ссылку на игру
-            currentGameRef = gameRef;
             
             // Слушаем изменения в игре
             listenToGameChanges(gameCode);
@@ -424,9 +416,9 @@ function loadPublicGames() {
     const publicGamesList = document.getElementById('public-games-list');
     publicGamesList.innerHTML = '<div class="empty-state"><i class="fas fa-users"></i><p>Загрузка игр...</p></div>';
     
-    const gamesRef = ref(database, 'games');
+    const gamesRef = database.ref('games');
     
-    onValue(gamesRef, (snapshot) => {
+    gamesRef.on('value', (snapshot) => {
         const games = snapshot.val();
         publicGamesList.innerHTML = '';
         
@@ -479,9 +471,9 @@ function loadActiveGames() {
     
     const activeGamesList = document.getElementById('active-games-list');
     
-    const gamesRef = ref(database, 'games');
+    const gamesRef = database.ref('games');
     
-    onValue(gamesRef, (snapshot) => {
+    gamesRef.on('value', (snapshot) => {
         const games = snapshot.val();
         activeGamesList.innerHTML = '';
         
@@ -523,10 +515,10 @@ function loadActiveGames() {
             button.addEventListener('click', function() {
                 const code = this.getAttribute('data-code');
                 gameCode = code;
-                currentGameRef = ref(database, 'games/' + code);
+                currentGameRef = database.ref('games/' + code);
                 
                 // Определяем цвет игрока
-                get(currentGameRef).then(snapshot => {
+                currentGameRef.once('value').then(snapshot => {
                     const game = snapshot.val();
                     isWhite = game.whitePlayer === currentUser.uid;
                     
@@ -548,9 +540,9 @@ function listenToGameChanges(gameCode) {
         currentGameListener();
     }
     
-    const gameRef = ref(database, 'games/' + gameCode);
+    currentGameRef = database.ref('games/' + gameCode);
     
-    currentGameListener = onValue(gameRef, (snapshot) => {
+    currentGameListener = currentGameRef.on('value', (snapshot) => {
         if (snapshot.exists()) {
             currentGame = snapshot.val();
             updateGameUI(currentGame);
@@ -664,11 +656,11 @@ function initializeChessBoard() {
     // Стандартная начальная позиция в шахматах
     const board = Array(64).fill(null);
     
-    // Белые фигуры
+    // Белые фигуры (нижний регистр для черных)
     board[0] = '♜'; board[1] = '♞'; board[2] = '♝'; board[3] = '♛'; board[4] = '♚'; board[5] = '♝'; board[6] = '♞'; board[7] = '♜';
     for (let i = 8; i < 16; i++) board[i] = '♟';
     
-    // Черные фигуры
+    // Черные фигуры (верхний регистр для белых)
     board[56] = '♖'; board[57] = '♘'; board[58] = '♗'; board[59] = '♕'; board[60] = '♔'; board[61] = '♗'; board[62] = '♘'; board[63] = '♖';
     for (let i = 48; i < 56; i++) board[i] = '♙';
     
@@ -696,6 +688,11 @@ function renderChessBoard() {
             if (col === 0) {
                 const coord = document.createElement('div');
                 coord.className = 'coord coord-row';
+                coord.style.position = 'absolute';
+                coord.style.top = '2px';
+                coord.style.left = '2px';
+                coord.style.fontSize = '12px';
+                coord.style.color = isLight ? '#b58863' : '#f0d9b5';
                 coord.textContent = 8 - row;
                 square.appendChild(coord);
             }
@@ -703,6 +700,11 @@ function renderChessBoard() {
             if (row === 7) {
                 const coord = document.createElement('div');
                 coord.className = 'coord coord-col';
+                coord.style.position = 'absolute';
+                coord.style.bottom = '2px';
+                coord.style.right = '2px';
+                coord.style.fontSize = '12px';
+                coord.style.color = isLight ? '#b58863' : '#f0d9b5';
                 coord.textContent = String.fromCharCode(97 + col);
                 square.appendChild(coord);
             }
@@ -934,7 +936,7 @@ function makeMove(fromIndex, toIndex) {
     });
     
     // Обновляем игру в базе данных
-    update(currentGameRef, {
+    currentGameRef.update({
         board: board,
         turn: nextTurn,
         moveHistory: moveHistory,
@@ -1006,6 +1008,15 @@ function updateChat(chatMessages) {
     const chatContainer = document.getElementById('chat-messages');
     chatContainer.innerHTML = '';
     
+    // Добавляем системное сообщение, если чат пустой
+    if (!chatMessages || chatMessages.length === 0) {
+        const systemMessage = document.createElement('div');
+        systemMessage.className = 'system-message';
+        systemMessage.textContent = 'Игра началась. Удачной игры!';
+        chatContainer.appendChild(systemMessage);
+        return;
+    }
+    
     chatMessages.forEach(message => {
         const messageElement = document.createElement('div');
         messageElement.className = `chat-message ${message.senderId === currentUser.uid ? 'sender' : ''}`;
@@ -1039,7 +1050,7 @@ function sendChatMessage() {
         timestamp: Date.now()
     });
     
-    update(currentGameRef, { chat: chat })
+    currentGameRef.update({ chat: chat })
         .then(() => {
             chatInput.value = '';
         })
@@ -1056,7 +1067,7 @@ function offerSurrender() {
     if (confirm('Вы уверены, что хотите сдаться?')) {
         const winner = isWhite ? 'black' : 'white';
         
-        update(currentGameRef, {
+        currentGameRef.update({
             status: 'finished',
             winner: winner,
             finishedAt: Date.now()
@@ -1074,7 +1085,7 @@ function offerSurrender() {
 function offerDraw() {
     if (!currentGameRef || !currentGame) return;
     
-    update(currentGameRef, {
+    currentGameRef.update({
         drawOffered: currentUser.uid
     })
     .then(() => {
@@ -1089,7 +1100,7 @@ function offerDraw() {
 function acceptDraw() {
     if (!currentGameRef) return;
     
-    update(currentGameRef, {
+    currentGameRef.update({
         status: 'finished',
         winner: 'draw',
         finishedAt: Date.now(),
@@ -1108,7 +1119,7 @@ function acceptDraw() {
 function declineDraw() {
     if (!currentGameRef) return;
     
-    update(currentGameRef, {
+    currentGameRef.update({
         drawOffered: null
     })
     .then(() => {
@@ -1124,7 +1135,7 @@ function declineDraw() {
 function offerRematch() {
     if (!currentGameRef || !currentGame) return;
     
-    update(currentGameRef, {
+    currentGameRef.update({
         rematchOffered: currentUser.uid
     })
     .then(() => {
@@ -1141,7 +1152,7 @@ function acceptRematch() {
     
     // Создаем новую игру с теми же игроками
     const newGameCode = generateGameCode();
-    const newGameRef = ref(database, 'games/' + newGameCode);
+    const newGameRef = database.ref('games/' + newGameCode);
     
     // Меняем цвета
     const newIsWhite = !isWhite;
@@ -1165,10 +1176,10 @@ function acceptRematch() {
         chat: []
     };
     
-    set(newGameRef, gameData)
+    newGameRef.set(gameData)
         .then(() => {
             // Удаляем старую игру
-            remove(currentGameRef)
+            currentGameRef.remove()
                 .then(() => {
                     // Переходим в новую игру
                     gameCode = newGameCode;
@@ -1194,7 +1205,7 @@ function acceptRematch() {
 function declineRematch() {
     if (!currentGameRef) return;
     
-    update(currentGameRef, {
+    currentGameRef.update({
         rematchOffered: null
     })
     .then(() => {
@@ -1209,10 +1220,16 @@ function declineRematch() {
 // Перевернуть доску
 function flipBoard() {
     const chessBoard = document.getElementById('chess-board');
-    chessBoard.classList.toggle('flipped');
+    const isFlipped = chessBoard.classList.toggle('flipped');
     
-    // Для простоты просто сообщим пользователю
-    toastr.info('Доска перевернута');
+    // Сохраняем состояние переворота
+    if (isFlipped) {
+        chessBoard.style.transform = 'rotate(180deg)';
+        toastr.info('Доска перевернута');
+    } else {
+        chessBoard.style.transform = 'rotate(0deg)';
+        toastr.info('Доска возвращена в исходное положение');
+    }
 }
 
 // Включить/выключить подсветку ходов
@@ -1228,7 +1245,7 @@ function showModal(modalId) {
 // Покинуть игру
 function leaveGame() {
     if (currentGameListener) {
-        currentGameListener();
+        currentGameRef.off('value', currentGameListener);
         currentGameListener = null;
     }
     
@@ -1250,3 +1267,5 @@ window.app = {
     createNewGame,
     joinGameByCode
 };
+
+console.log('NeoCascadeChess готов к работе!');
