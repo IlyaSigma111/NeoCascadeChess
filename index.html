@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeoCascadeChess - Игра в шахматы с друзьями</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Roboto+Slab:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Главный экран с аутентификацией -->
+        <div id="auth-screen" class="screen active">
+            <div class="glass-container">
+                <div class="logo-container">
+                    <div class="logo">
+                        <i class="fas fa-chess-queen"></i>
+                        <i class="fas fa-chess-king"></i>
+                        <i class="fas fa-chess-bishop"></i>
+                    </div>
+                    <h1>NeoCascade<span>Chess</span></h1>
+                    <p class="tagline">Играйте в шахматы с друзьями в реальном времени</p>
+                </div>
+                
+                <div class="auth-form">
+                    <h2>Войдите, чтобы начать игру</h2>
+                    <button id="google-login" class="auth-btn google-btn">
+                        <i class="fab fa-google"></i> Войти через Google
+                    </button>
+                    
+                    <div class="divider">
+                        <span>или</span>
+                    </div>
+                    
+                    <div class="input-group">
+                        <input type="text" id="username" placeholder="Имя пользователя (для гостей)">
+                        <button id="guest-login" class="auth-btn guest-btn">
+                            Войти как гость
+                        </button>
+                    </div>
+                    
+                    <div class="auth-info">
+                        <p><i class="fas fa-info-circle"></i> Войдите через Google, чтобы сохранять игры и играть с друзьями</p>
+                    </div>
+                </div>
+                
+                <div class="features">
+                    <div class="feature">
+                        <i class="fas fa-users"></i>
+                        <h3>Игра с друзьями</h3>
+                        <p>Приглашайте друзей по ссылке</p>
+                    </div>
+                    <div class="feature">
+                        <i class="fas fa-bolt"></i>
+                        <h3>В реальном времени</h3>
+                        <p>Мгновенные ходы и чат</p>
+                    </div>
+                    <div class="feature">
+                        <i class="fas fa-trophy"></i>
+                        <h3>Рейтинг и статистика</h3>
+                        <p>Отслеживайте свой прогресс</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Главное меню -->
+        <div id="main-menu" class="screen">
+            <div class="header">
+                <div class="user-info">
+                    <div class="user-avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="user-details">
+                        <h3 id="user-name">Гость</h3>
+                        <p id="user-email"></p>
+                    </div>
+                </div>
+                <button id="logout-btn" class="icon-btn">
+                    <i class="fas fa-sign-out-alt"></i> Выйти
+                </button>
+            </div>
+            
+            <div class="menu-content">
+                <h2 class="menu-title">Главное меню</h2>
+                
+                <div class="menu-cards">
+                    <div class="menu-card" id="create-game-card">
+                        <div class="card-icon create">
+                            <i class="fas fa-plus"></i>
+                        </div>
+                        <h3>Создать игру</h3>
+                        <p>Создайте новую партию и пригласите друга</p>
+                    </div>
+                    
+                    <div class="menu-card" id="join-game-card">
+                        <div class="card-icon join">
+                            <i class="fas fa-user-friends"></i>
+                        </div>
+                        <h3>Присоединиться</h3>
+                        <p>Присоединитесь к игре по коду</p>
+                    </div>
+                    
+                    <div class="menu-card" id="games-history-card">
+                        <div class="card-icon history">
+                            <i class="fas fa-history"></i>
+                        </div>
+                        <h3>История игр</h3>
+                        <p>Посмотрите ваши предыдущие партии</p>
+                    </div>
+                    
+                    <div class="menu-card" id="how-to-play-card">
+                        <div class="card-icon help">
+                            <i class="fas fa-question-circle"></i>
+                        </div>
+                        <h3>Как играть</h3>
+                        <p>Узнайте правила и особенности</p>
+                    </div>
+                </div>
+                
+                <div class="active-games-section">
+                    <h3>Активные игры</h3>
+                    <div id="active-games-list" class="games-list">
+                        <div class="empty-state">
+                            <i class="fas fa-chess-board"></i>
+                            <p>Нет активных игр</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Экран создания игры -->
+        <div id="create-game-screen" class="screen">
+            <div class="header">
+                <button id="back-to-menu-from-create" class="back-btn">
+                    <i class="fas fa-arrow-left"></i> Назад
+                </button>
+                <h2>Создание игры</h2>
+            </div>
+            
+            <div class="create-game-content">
+                <div class="game-settings glass-container">
+                    <h3>Настройки игры</h3>
+                    
+                    <div class="setting-group">
+                        <label for="time-control">Контроль времени:</label>
+                        <select id="time-control">
+                            <option value="none">Без ограничения</option>
+                            <option value="10">10 минут</option>
+                            <option value="15" selected>15 минут</option>
+                            <option value="30">30 минут</option>
+                            <option value="60">1 час</option>
+                        </select>
+                    </div>
+                    
+                    <div class="setting-group">
+                        <label for="game-mode">Цвет фигур:</label>
+                        <select id="game-mode">
+                            <option value="random">Случайный</option>
+                            <option value="white">Белые</option>
+                            <option value="black">Чёрные</option>
+                        </select>
+                    </div>
+                    
+                    <div class="setting-group">
+                        <label for="game-privacy">Приватность:</label>
+                        <select id="game-privacy">
+                            <option value="public">Публичная (видна всем)</option>
+                            <option value="private" selected>Приватная (только по коду)</option>
+                        </select>
+                    </div>
+                    
+                    <button id="create-game-btn" class="primary-btn">
+                        <i class="fas fa-chess-board"></i> Создать игру
+                    </button>
+                </div>
+                
+                <div class="game-invite glass-container" id="game-invite-container" style="display: none;">
+                    <h3>Пригласить друга</h3>
+                    <p>Отправьте этот код другу, чтобы он мог присоединиться к игре:</p>
+                    
+                    <div class="game-code-container">
+                        <div class="game-code" id="game-code-display">ABCD12</div>
+                        <button id="copy-code-btn" class="icon-btn">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                    
+                    <p class="invite-note">Игра начнется, когда ваш друг присоединится</p>
+                    
+                    <div class="invite-actions">
+                        <button id="start-game-btn" class="primary-btn" disabled>
+                            <i class="fas fa-play"></i> Начать игру
+                        </button>
+                        <button id="cancel-game-btn" class="secondary-btn">
+                            <i class="fas fa-times"></i> Отменить
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Экран присоединения к игре -->
+        <div id="join-game-screen" class="screen">
+            <div class="header">
+                <button id="back-to-menu-from-join" class="back-btn">
+                    <i class="fas fa-arrow-left"></i> Назад
+                </button>
+                <h2>Присоединиться к игре</h2>
+            </div>
+            
+            <div class="join-game-content">
+                <div class="join-game-form glass-container">
+                    <h3>Введите код игры</h3>
+                    <p>Попросите код у друга, создавшего игру</p>
+                    
+                    <div class="code-input-container">
+                        <input type="text" id="game-code-input" placeholder="Введите 6-значный код" maxlength="6">
+                        <button id="join-game-btn" class="primary-btn">
+                            <i class="fas fa-sign-in-alt"></i> Присоединиться
+                        </button>
+                    </div>
+                    
+                    <div class="public-games-section">
+                        <h4>Публичные игры</h4>
+                        <div id="public-games-list" class="games-list">
+                            <div class="empty-state">
+                                <i class="fas fa-users"></i>
+                                <p>Нет публичных игр</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Экран игры -->
+        <div id="game-screen" class="screen">
+            <div class="game-header">
+                <button id="back-to-menu-from-game" class="back-btn">
+                    <i class="fas fa-arrow-left"></i> Меню
+                </button>
+                
+                <div class="game-info">
+                    <div class="player-info white-player">
+                        <div class="player-avatar">
+                            <i class="fas fa-chess-pawn"></i>
+                        </div>
+                        <div class="player-details">
+                            <h4 id="white-player-name">Белые</h4>
+                            <div class="player-timer" id="white-timer">15:00</div>
+                        </div>
+                        <div class="player-status" id="white-status"></div>
+                    </div>
+                    
+                    <div class="game-status">
+                        <div class="game-code-small" id="game-code-small">ABCD12</div>
+                        <div class="game-turn" id="current-turn">Ход белых</div>
+                        <div class="game-result" id="game-result"></div>
+                    </div>
+                    
+                    <div class="player-info black-player">
+                        <div class="player-avatar">
+                            <i class="fas fa-chess-pawn"></i>
+                        </div>
+                        <div class="player-details">
+                            <h4 id="black-player-name">Чёрные</h4>
+                            <div class="player-timer" id="black-timer">15:00</div>
+                        </div>
+                        <div class="player-status" id="black-status"></div>
+                    </div>
+                </div>
+                
+                <div class="game-controls">
+                    <button id="surrender-btn" class="icon-btn">
+                        <i class="fas fa-flag"></i> Сдаться
+                    </button>
+                    <button id="offer-draw-btn" class="icon-btn">
+                        <i class="fas fa-handshake"></i> Ничья
+                    </button>
+                    <button id="rematch-btn" class="icon-btn" style="display: none;">
+                        <i class="fas fa-redo"></i> Реванш
+                    </button>
+                </div>
+            </div>
+            
+            <div class="game-content">
+                <div class="chess-container">
+                    <div class="chess-board-container">
+                        <div class="chess-board" id="chess-board">
+                            <!-- Шахматная доска будет сгенерирована через JavaScript -->
+                        </div>
+                        <div class="board-controls">
+                            <button id="flip-board-btn" class="icon-btn small">
+                                <i class="fas fa-sync-alt"></i> Перевернуть доску
+                            </button>
+                            <button id="highlight-moves-btn" class="icon-btn small">
+                                <i class="fas fa-lightbulb"></i> Подсветить ходы
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="game-sidebar">
+                        <div class="game-chat glass-container">
+                            <h3>Чат игры</h3>
+                            <div class="chat-messages" id="chat-messages">
+                                <div class="system-message">
+                                    Игра началась. Удачной игры!
+                                </div>
+                            </div>
+                            <div class="chat-input-container">
+                                <input type="text" id="chat-input" placeholder="Введите сообщение...">
+                                <button id="send-chat-btn" class="icon-btn">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="move-history glass-container">
+                            <h3>История ходов</h3>
+                            <div class="moves-list" id="moves-list">
+                                <!-- История ходов будет добавляться через JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Экран правил -->
+        <div id="rules-screen" class="screen">
+            <div class="header">
+                <button id="back-to-menu-from-rules" class="back-btn">
+                    <i class="fas fa-arrow-left"></i> Назад
+                </button>
+                <h2>Как играть в NeoCascadeChess</h2>
+            </div>
+            
+            <div class="rules-content">
+                <div class="rules-container glass-container">
+                    <div class="rule-section">
+                        <h3><i class="fas fa-chess-board"></i> Основные правила</h3>
+                        <p>Шахматы — игра для двух игроков на доске 8×8 клеток. Каждый игрок начинает с 16 фигур: король, ферзь, две ладьи, два слона, два коня и восемь пешек.</p>
+                        <p>Цель игры — поставить мат королю противника.</p>
+                    </div>
+                    
+                    <div class="rule-section">
+                        <h3><i class="fas fa-user-friends"></i> Игра с друзьями</h3>
+                        <p>1. Создайте игру в главном меню и получите код приглашения</p>
+                        <p>2. Отправьте код другу</p>
+                        <p>3. Когда друг присоединится, игра начнется автоматически</p>
+                        <p>4. Ходы отображаются в реальном времени у обоих игроков</p>
+                    </div>
+                    
+                    <div class="rule-section">
+                        <h3><i class="fas fa-bolt"></i> Особенности NeoCascadeChess</h3>
+                        <p>• Игра в реальном времени с мгновенной синхронизацией</p>
+                        <p>• Встроенный чат для общения с соперником</p>
+                        <p>• Возможность предложить ничью или сдаться</p>
+                        <p>• История ходов и возможность реванша</p>
+                        <p>• Стильный дизайн в стиле glassmorphism</p>
+                    </div>
+                    
+                    <div class="rule-section">
+                        <h3><i class="fas fa-clock"></i> Контроль времени</h3>
+                        <p>Вы можете выбрать контроль времени при создании игры:</p>
+                        <p>• Без ограничения времени</p>
+                        <p>• 10, 15, 30 или 60 минут на партию</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Модальное окно для предложения ничьей -->
+    <div id="draw-offer-modal" class="modal">
+        <div class="modal-content glass-container">
+            <h3>Предложение ничьей</h3>
+            <p>Ваш соперник предлагает ничью. Принять предложение?</p>
+            <div class="modal-actions">
+                <button id="accept-draw-btn" class="primary-btn">Принять ничью</button>
+                <button id="decline-draw-btn" class="secondary-btn">Отклонить</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Модальное окно для реванша -->
+    <div id="rematch-modal" class="modal">
+        <div class="modal-content glass-container">
+            <h3>Предложение реванша</h3>
+            <p id="rematch-message">Ваш соперник предлагает реванш. Сыграть еще одну партию?</p>
+            <div class="modal-actions">
+                <button id="accept-rematch-btn" class="primary-btn">Принять реванш</button>
+                <button id="decline-rematch-btn" class="secondary-btn">Отклонить</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Уведомления -->
+    <div id="notification-container"></div>
+    
+    <!-- Зависимости -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    
+    <!-- Скрипты приложения -->
+    <script src="firebase-config.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
