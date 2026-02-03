@@ -31,6 +31,25 @@ let gameState = {
     rematchOffered: false
 };
 
+// Карта фигур для Font Awesome иконок
+const pieceIcons = {
+    // Черные фигуры
+    'black-king': 'fas fa-chess-king',
+    'black-queen': 'fas fa-chess-queen',
+    'black-rook': 'fas fa-chess-rook',
+    'black-bishop': 'fas fa-chess-bishop',
+    'black-knight': 'fas fa-chess-knight',
+    'black-pawn': 'fas fa-chess-pawn',
+    
+    // Белые фигуры
+    'white-king': 'fas fa-chess-king',
+    'white-queen': 'fas fa-chess-queen',
+    'white-rook': 'fas fa-chess-rook',
+    'white-bishop': 'fas fa-chess-bishop',
+    'white-knight': 'fas fa-chess-knight',
+    'white-pawn': 'fas fa-chess-pawn'
+};
+
 // Инициализация приложения
 document.addEventListener('DOMContentLoaded', function() {
     initApp();
@@ -117,6 +136,10 @@ function setupEventListeners() {
     
     // Присоединение к игре
     document.getElementById('join-game-btn').addEventListener('click', joinGameByCode);
+    document.getElementById('game-code-input').addEventListener('input', function(e) {
+        // Разрешаем только цифры
+        this.value = this.value.replace(/[^0-9]/g, '');
+    });
     
     // Игровой процесс
     document.getElementById('surrender-btn').addEventListener('click', offerSurrender);
@@ -211,7 +234,14 @@ function showScreen(screenId) {
     const targetScreen = document.getElementById(screenId);
     if (targetScreen) {
         targetScreen.classList.add('active');
-        targetScreen.classList.add('fade-in');
+        
+        // Прокручиваем вверх экрана
+        window.scrollTo(0, 0);
+        
+        // Если это главное меню, обновляем активные игры
+        if (screenId === 'main-menu') {
+            loadActiveGames();
+        }
     }
 }
 
@@ -225,11 +255,11 @@ function updateUserInfo() {
 
 // Создать новую игру
 function createNewGame() {
-    const timeControl = document.getElementById('time-control').value;
+    const timeControl = parseInt(document.getElementById('time-control').value);
     const gameMode = document.getElementById('game-mode').value;
     const gamePrivacy = document.getElementById('game-privacy').value;
     
-    // Генерируем код игры
+    // Генерируем код игры (только цифры)
     gameCode = generateGameCode();
     
     // Определяем цвет игрока
@@ -240,7 +270,7 @@ function createNewGame() {
     }
     
     // Устанавливаем время
-    const timeInSeconds = timeControl === 'none' ? 0 : parseInt(timeControl) * 60;
+    const timeInSeconds = timeControl;
     gameState.whiteTime = timeInSeconds;
     gameState.blackTime = timeInSeconds;
     
@@ -261,8 +291,11 @@ function createNewGame() {
         createdAt: Date.now(),
         board: initializeChessBoard(),
         turn: 'white',
+        whiteTime: timeInSeconds,
+        blackTime: timeInSeconds,
         moveHistory: [],
-        chat: []
+        chat: [],
+        lastUpdate: Date.now()
     };
     
     currentGameRef.set(gameData)
@@ -271,6 +304,7 @@ function createNewGame() {
             document.getElementById('game-code-display').textContent = gameCode;
             document.getElementById('game-invite-container').style.display = 'block';
             document.getElementById('start-game-btn').disabled = true;
+            document.getElementById('invite-status').textContent = 'Ожидание соперника...';
             
             // Слушаем изменения в игре
             listenToGameChanges(gameCode);
@@ -283,12 +317,11 @@ function createNewGame() {
         });
 }
 
-// Сгенерировать код игры
+// Сгенерировать цифровой код игры
 function generateGameCode() {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let result = '';
     for (let i = 0; i < 6; i++) {
-        result += characters.charAt(Math.floor(Math.random() * characters.length));
+        result += Math.floor(Math.random() * 10);
     }
     return result;
 }
@@ -312,11 +345,17 @@ function startGame() {
     
     currentGameRef.update({
         status: 'active',
-        startedAt: Date.now()
+        startedAt: Date.now(),
+        lastUpdate: Date.now()
     })
     .then(() => {
         document.getElementById('start-game-btn').disabled = true;
         toastr.success('Игра началась!');
+        
+        // Автоматически переходим на экран игры
+        setTimeout(() => {
+            showScreen('game-screen');
+        }, 1000);
     })
     .catch(error => {
         console.error('Ошибка начала игры:', error);
@@ -344,10 +383,10 @@ function cancelGame() {
 
 // Присоединиться к игре по коду
 function joinGameByCode() {
-    const codeInput = document.getElementById('game-code-input').value.trim().toUpperCase();
+    const codeInput = document.getElementById('game-code-input').value.trim();
     
-    if (codeInput.length !== 6) {
-        toastr.warning('Введите 6-значный код игры');
+    if (codeInput.length !== 6 || !/^\d+$/.test(codeInput)) {
+        toastr.warning('Введите 6-значный цифровой код игры');
         return;
     }
     
@@ -370,37 +409,49 @@ function joinGameByCode() {
             }
             
             // Определяем цвет игрока
+            let updates = {};
             if (!gameData.whitePlayer) {
                 isWhite = true;
-                currentGameRef.update({
+                updates = {
                     whitePlayer: currentUser.uid,
-                    whitePlayerName: currentUser.displayName
-                });
+                    whitePlayerName: currentUser.displayName,
+                    lastUpdate: Date.now()
+                };
             } else if (!gameData.blackPlayer) {
                 isWhite = false;
-                currentGameRef.update({
+                updates = {
                     blackPlayer: currentUser.uid,
-                    blackPlayerName: currentUser.displayName
-                });
+                    blackPlayerName: currentUser.displayName,
+                    lastUpdate: Date.now()
+                };
             } else {
                 toastr.warning('В игре нет свободных мест');
                 return;
             }
             
             // Если оба игрока на месте, начинаем игру
-            if (gameData.whitePlayer && gameData.blackPlayer) {
-                currentGameRef.update({
-                    status: 'active',
-                    startedAt: Date.now()
-                });
+            const hasWhitePlayer = gameData.whitePlayer || updates.whitePlayer;
+            const hasBlackPlayer = gameData.blackPlayer || updates.blackPlayer;
+            
+            if (hasWhitePlayer && hasBlackPlayer) {
+                updates.status = 'active';
+                updates.startedAt = Date.now();
             }
             
-            // Слушаем изменения в игре
-            listenToGameChanges(gameCode);
-            
-            // Переходим на экран игры
-            showScreen('game-screen');
-            toastr.success('Вы присоединились к игре!');
+            currentGameRef.update(updates)
+                .then(() => {
+                    // Слушаем изменения в игре
+                    listenToGameChanges(gameCode);
+                    
+                    // Переходим на экран игры
+                    showScreen('game-screen');
+                    toastr.success('Вы присоединились к игре!');
+                    
+                    // Если игра началась автоматически
+                    if (hasWhitePlayer && hasBlackPlayer) {
+                        toastr.info('Игра началась!');
+                    }
+                });
             
         } else {
             toastr.error('Игра с таким кодом не найдена');
@@ -441,7 +492,8 @@ function loadPublicGames() {
                     <div class="game-item-content">
                         <h4>Игра ${gameCode}</h4>
                         <p>Создатель: ${game.creatorName}</p>
-                        <p>Контроль времени: ${game.timeControl === 'none' ? 'Без ограничения' : game.timeControl + ' мин'}</p>
+                        <p>Контроль времени: ${game.timeControl === 0 ? 'Без ограничения' : (game.timeControl/60) + ' мин'}</p>
+                        <p>Игроков: ${(game.whitePlayer ? 1 : 0) + (game.blackPlayer ? 1 : 0)}/2</p>
                         <button class="join-public-game-btn" data-code="${gameCode}">Присоединиться</button>
                     </div>
                 `;
@@ -491,13 +543,18 @@ function loadActiveGames() {
                 game.status !== 'finished') {
                 userGamesCount++;
                 
+                const opponentName = game.whitePlayer === currentUser.uid ? 
+                    (game.blackPlayerName || 'Ожидание...') : 
+                    (game.whitePlayerName || 'Ожидание...');
+                
                 const gameElement = document.createElement('div');
                 gameElement.className = 'game-item';
                 gameElement.innerHTML = `
                     <div class="game-item-content">
                         <h4>Игра ${gameCode}</h4>
-                        <p>Противник: ${game.whitePlayer === currentUser.uid ? game.blackPlayerName || 'Ожидание...' : game.whitePlayerName || 'Ожидание...'}</p>
+                        <p>Противник: ${opponentName}</p>
                         <p>Статус: ${game.status === 'waiting' ? 'Ожидание соперника' : 'Активна'}</p>
+                        <p>Ход: ${game.turn === 'white' ? 'Белые' : 'Чёрные'}</p>
                         <button class="resume-game-btn" data-code="${gameCode}">Продолжить</button>
                     </div>
                 `;
@@ -527,6 +584,7 @@ function loadActiveGames() {
                     
                     // Переходим на экран игры
                     showScreen('game-screen');
+                    toastr.info('Возвращаемся в игру...');
                 });
             });
         });
@@ -537,7 +595,7 @@ function loadActiveGames() {
 function listenToGameChanges(gameCode) {
     if (currentGameListener) {
         // Удаляем предыдущего слушателя
-        currentGameListener();
+        currentGameRef.off('value', currentGameListener);
     }
     
     currentGameRef = database.ref('games/' + gameCode);
@@ -545,7 +603,14 @@ function listenToGameChanges(gameCode) {
     currentGameListener = currentGameRef.on('value', (snapshot) => {
         if (snapshot.exists()) {
             currentGame = snapshot.val();
+            
+            // Обновляем UI игры
             updateGameUI(currentGame);
+            
+            // Если мы на экране создания игры, проверяем статус
+            if (document.getElementById('create-game-screen').classList.contains('active')) {
+                updateCreateGameScreen(currentGame);
+            }
             
             // Проверяем предложение ничьей
             if (currentGame.drawOffered && currentGame.drawOffered !== currentUser.uid) {
@@ -572,6 +637,45 @@ function listenToGameChanges(gameCode) {
     });
 }
 
+// Обновить экран создания игры
+function updateCreateGameScreen(game) {
+    const inviteContainer = document.getElementById('game-invite-container');
+    const inviteStatus = document.getElementById('invite-status');
+    const startButton = document.getElementById('start-game-btn');
+    
+    if (game.status === 'waiting') {
+        if (game.whitePlayer && game.blackPlayer) {
+            // Оба игрока на месте
+            inviteStatus.textContent = 'Соперник присоединился!';
+            inviteStatus.style.color = '#4caf50';
+            startButton.disabled = false;
+            startButton.classList.add('pulse');
+            
+            // Автоматически начинаем игру через 3 секунды
+            setTimeout(() => {
+                if (startButton.disabled === false && game.status === 'waiting') {
+                    startGame();
+                }
+            }, 3000);
+        } else {
+            // Ожидаем второго игрока
+            const hasOpponent = game.whitePlayer !== currentUser.uid || game.blackPlayer !== currentUser.uid;
+            inviteStatus.textContent = hasOpponent ? 'Соперник присоединяется...' : 'Ожидание соперника...';
+            inviteStatus.style.color = '#ff9800';
+            startButton.disabled = true;
+            startButton.classList.remove('pulse');
+        }
+    } else if (game.status === 'active') {
+        // Игра началась, автоматически переходим на экран игры
+        inviteStatus.textContent = 'Игра началась!';
+        inviteStatus.style.color = '#4caf50';
+        
+        setTimeout(() => {
+            showScreen('game-screen');
+        }, 1000);
+    }
+}
+
 // Обновить интерфейс игры
 function updateGameUI(game) {
     // Обновляем информацию об игроках
@@ -585,9 +689,11 @@ function updateGameUI(game) {
     if (game.status === 'waiting') {
         document.getElementById('current-turn').textContent = 'Ожидание соперника';
         document.getElementById('game-result').textContent = '';
+        document.getElementById('rematch-btn').style.display = 'none';
     } else if (game.status === 'active') {
         document.getElementById('current-turn').textContent = game.turn === 'white' ? 'Ход белых' : 'Ход чёрных';
         document.getElementById('game-result').textContent = '';
+        document.getElementById('rematch-btn').style.display = 'none';
     } else if (game.status === 'finished') {
         document.getElementById('current-turn').textContent = 'Игра завершена';
         
@@ -628,17 +734,22 @@ function updateGameUI(game) {
     const whiteStatus = document.getElementById('white-status');
     const blackStatus = document.getElementById('black-status');
     
-    if (game.turn === 'white') {
+    if (game.turn === 'white' && game.status === 'active') {
         whiteStatus.innerHTML = '<i class="fas fa-hourglass-half"></i>';
         blackStatus.innerHTML = '';
-    } else if (game.turn === 'black') {
+    } else if (game.turn === 'black' && game.status === 'active') {
         whiteStatus.innerHTML = '';
         blackStatus.innerHTML = '<i class="fas fa-hourglass-half"></i>';
+    } else {
+        whiteStatus.innerHTML = '';
+        blackStatus.innerHTML = '';
     }
     
     // Если игра активна и есть оба игрока, активируем доску
     if (game.status === 'active' && game.whitePlayer && game.blackPlayer) {
-        activateBoard();
+        setTimeout(() => {
+            activateBoard();
+        }, 100);
     }
 }
 
@@ -651,18 +762,26 @@ function formatTime(seconds) {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
-// Инициализировать шахматную доску
+// Инициализировать шахматную доску с Font Awesome иконками
 function initializeChessBoard() {
     // Стандартная начальная позиция в шахматах
     const board = Array(64).fill(null);
     
-    // Белые фигуры (нижний регистр для черных)
-    board[0] = '♜'; board[1] = '♞'; board[2] = '♝'; board[3] = '♛'; board[4] = '♚'; board[5] = '♝'; board[6] = '♞'; board[7] = '♜';
-    for (let i = 8; i < 16; i++) board[i] = '♟';
+    // Черные фигуры (верхние)
+    // Ладьи, кони, слоны, ферзь, король
+    board[0] = 'black-rook'; board[1] = 'black-knight'; board[2] = 'black-bishop'; 
+    board[3] = 'black-queen'; board[4] = 'black-king'; 
+    board[5] = 'black-bishop'; board[6] = 'black-knight'; board[7] = 'black-rook';
+    // Черные пешки
+    for (let i = 8; i < 16; i++) board[i] = 'black-pawn';
     
-    // Черные фигуры (верхний регистр для белых)
-    board[56] = '♖'; board[57] = '♘'; board[58] = '♗'; board[59] = '♕'; board[60] = '♔'; board[61] = '♗'; board[62] = '♘'; board[63] = '♖';
-    for (let i = 48; i < 56; i++) board[i] = '♙';
+    // Белые фигуры (нижние)
+    // Белые пешки
+    for (let i = 48; i < 56; i++) board[i] = 'white-pawn';
+    // Ладьи, кони, слоны, ферзь, король
+    board[56] = 'white-rook'; board[57] = 'white-knight'; board[58] = 'white-bishop'; 
+    board[59] = 'white-queen'; board[60] = 'white-king'; 
+    board[61] = 'white-bishop'; board[62] = 'white-knight'; board[63] = 'white-rook';
     
     return board;
 }
@@ -684,37 +803,12 @@ function renderChessBoard() {
             square.dataset.row = row;
             square.dataset.col = col;
             
-            // Добавляем координаты
-            if (col === 0) {
-                const coord = document.createElement('div');
-                coord.className = 'coord coord-row';
-                coord.style.position = 'absolute';
-                coord.style.top = '2px';
-                coord.style.left = '2px';
-                coord.style.fontSize = '12px';
-                coord.style.color = isLight ? '#b58863' : '#f0d9b5';
-                coord.textContent = 8 - row;
-                square.appendChild(coord);
-            }
-            
-            if (row === 7) {
-                const coord = document.createElement('div');
-                coord.className = 'coord coord-col';
-                coord.style.position = 'absolute';
-                coord.style.bottom = '2px';
-                coord.style.right = '2px';
-                coord.style.fontSize = '12px';
-                coord.style.color = isLight ? '#b58863' : '#f0d9b5';
-                coord.textContent = String.fromCharCode(97 + col);
-                square.appendChild(coord);
-            }
-            
             chessBoard.appendChild(square);
         }
     }
 }
 
-// Обновить шахматную доску
+// Обновить шахматную доску с Font Awesome иконками
 function updateChessBoard(board) {
     if (!board) return;
     
@@ -731,22 +825,48 @@ function updateChessBoard(board) {
             if (board[i]) {
                 const piece = document.createElement('div');
                 piece.className = 'chess-piece';
-                piece.textContent = board[i];
-                piece.draggable = true;
                 
                 // Определяем цвет фигуры
-                if (board[i] === board[i].toLowerCase()) {
-                    piece.dataset.color = 'black';
-                } else {
-                    piece.dataset.color = 'white';
-                }
-                
+                const isBlack = board[i].startsWith('black');
+                piece.dataset.color = isBlack ? 'black' : 'white';
+                piece.dataset.piece = board[i];
                 piece.dataset.index = i;
                 
+                // Создаем иконку Font Awesome
+                const icon = document.createElement('i');
+                const iconClass = pieceIcons[board[i]];
+                if (iconClass) {
+                    icon.className = iconClass;
+                    piece.appendChild(icon);
+                } else {
+                    // Fallback на текст, если иконка не найдена
+                    piece.textContent = getPieceSymbol(board[i]);
+                }
+                
+                piece.draggable = true;
                 square.appendChild(piece);
             }
         }
     }
+}
+
+// Получить символ фигуры (fallback)
+function getPieceSymbol(pieceType) {
+    const symbols = {
+        'black-king': '♚',
+        'black-queen': '♛',
+        'black-rook': '♜',
+        'black-bishop': '♝',
+        'black-knight': '♞',
+        'black-pawn': '♟',
+        'white-king': '♔',
+        'white-queen': '♕',
+        'white-rook': '♖',
+        'white-bishop': '♗',
+        'white-knight': '♘',
+        'white-pawn': '♙'
+    };
+    return symbols[pieceType] || '?';
 }
 
 // Активировать доску для игры
@@ -755,7 +875,8 @@ function activateBoard() {
     
     pieces.forEach(piece => {
         // Удаляем старые обработчики
-        piece.replaceWith(piece.cloneNode(true));
+        const newPiece = piece.cloneNode(true);
+        piece.replaceWith(newPiece);
     });
     
     // Получаем обновленные элементы
@@ -770,6 +891,10 @@ function activateBoard() {
             piece.addEventListener('dragstart', handleDragStart);
             piece.addEventListener('dragend', handleDragEnd);
             
+            // Добавляем обработчики для мобильных устройств
+            piece.addEventListener('touchstart', handleTouchStart, { passive: false });
+            piece.addEventListener('touchend', handleTouchEnd, { passive: false });
+            
             // Делаем фигуру перетаскиваемой
             piece.draggable = true;
         }
@@ -783,11 +908,17 @@ function activateBoard() {
         square.addEventListener('dragleave', handleDragLeave);
         square.addEventListener('drop', handleDrop);
         square.addEventListener('click', handleSquareClick);
+        
+        // Для мобильных устройств
+        square.addEventListener('touchmove', handleTouchMove, { passive: false });
+        square.addEventListener('touchend', handleTouchEndOnSquare, { passive: false });
     });
 }
 
 // Обработчики drag and drop
 let draggedPiece = null;
+let touchStartX = 0;
+let touchStartY = 0;
 
 function handleDragStart(e) {
     draggedPiece = e.target;
@@ -853,6 +984,52 @@ function handleSquareClick(e) {
     }
 }
 
+// Обработчики для сенсорных устройств
+function handleTouchStart(e) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+    draggedPiece = e.target;
+    draggedPiece.classList.add('dragging');
+}
+
+function handleTouchMove(e) {
+    e.preventDefault();
+}
+
+function handleTouchEnd(e) {
+    e.preventDefault();
+    if (draggedPiece) {
+        draggedPiece.classList.remove('dragging');
+        draggedPiece = null;
+    }
+    
+    // Убираем подсветку возможных ходов
+    document.querySelectorAll('.chess-square').forEach(square => {
+        square.classList.remove('valid-move', 'valid-capture');
+    });
+}
+
+function handleTouchEndOnSquare(e) {
+    e.preventDefault();
+    const square = e.target.closest('.chess-square');
+    if (!square || !draggedPiece) return;
+    
+    const fromIndex = parseInt(draggedPiece.dataset.index);
+    const toIndex = parseInt(square.dataset.index);
+    
+    // Проверяем, что это другой квадрат
+    if (fromIndex !== toIndex) {
+        makeMove(fromIndex, toIndex);
+    }
+    
+    if (draggedPiece) {
+        draggedPiece.classList.remove('dragging');
+        draggedPiece = null;
+    }
+}
+
 // Подсветить возможные ходы
 function highlightPossibleMoves(fromIndex) {
     // Убираем предыдущую подсветку
@@ -862,7 +1039,9 @@ function highlightPossibleMoves(fromIndex) {
     
     // Подсвечиваем выбранную фигуру
     const selectedSquare = document.querySelector(`.chess-square[data-index="${fromIndex}"]`);
-    selectedSquare.classList.add('selected');
+    if (selectedSquare) {
+        selectedSquare.classList.add('selected');
+    }
     
     // Для простоты показываем все пустые квадраты как возможные ходы
     // В реальном приложении здесь должна быть логика расчета допустимых ходов для каждой фигуры
@@ -910,7 +1089,7 @@ function makeMove(fromIndex, toIndex) {
     }
     
     // Проверяем, что фигура принадлежит текущему игроку
-    const pieceColor = piece === piece.toLowerCase() ? 'black' : 'white';
+    const pieceColor = piece.startsWith('black') ? 'black' : 'white';
     if (pieceColor !== currentPlayerColor) {
         toastr.warning('Это не ваша фигура');
         return;
@@ -922,6 +1101,17 @@ function makeMove(fromIndex, toIndex) {
     
     // Определяем следующий ход
     const nextTurn = currentGame.turn === 'white' ? 'black' : 'white';
+    
+    // Обновляем время
+    const timeUpdate = {};
+    const currentTime = Date.now();
+    const timePassed = currentTime - (currentGame.lastUpdate || currentTime);
+    
+    if (currentGame.turn === 'white' && currentGame.whiteTime > 0) {
+        timeUpdate.whiteTime = Math.max(0, currentGame.whiteTime - Math.floor(timePassed / 1000));
+    } else if (currentGame.turn === 'black' && currentGame.blackTime > 0) {
+        timeUpdate.blackTime = Math.max(0, currentGame.blackTime - Math.floor(timePassed / 1000));
+    }
     
     // Создаем запись о ходе
     const moveNotation = getMoveNotation(fromIndex, toIndex, piece);
@@ -940,6 +1130,8 @@ function makeMove(fromIndex, toIndex) {
         board: board,
         turn: nextTurn,
         moveHistory: moveHistory,
+        lastUpdate: Date.now(),
+        ...timeUpdate,
         // Сбрасываем предложение ничьей, если оно было
         drawOffered: null
     })
@@ -964,12 +1156,12 @@ function getMoveNotation(fromIndex, toIndex, piece) {
     
     // Символы фигур для нотации
     const pieceSymbols = {
-        '♚': 'K', '♔': 'K',
-        '♛': 'Q', '♕': 'Q',
-        '♜': 'R', '♖': 'R',
-        '♝': 'B', '♗': 'B',
-        '♞': 'N', '♘': 'N',
-        '♟': '', '♙': ''
+        'black-king': 'K', 'white-king': 'K',
+        'black-queen': 'Q', 'white-queen': 'Q',
+        'black-rook': 'R', 'white-rook': 'R',
+        'black-bishop': 'B', 'white-bishop': 'B',
+        'black-knight': 'N', 'white-knight': 'N',
+        'black-pawn': '', 'white-pawn': ''
     };
     
     const pieceSymbol = pieceSymbols[piece] || '';
@@ -981,6 +1173,11 @@ function getMoveNotation(fromIndex, toIndex, piece) {
 function updateMoveHistory(moveHistory) {
     const movesList = document.getElementById('moves-list');
     movesList.innerHTML = '';
+    
+    if (!moveHistory || moveHistory.length === 0) {
+        movesList.innerHTML = '<div class="empty-state"><i class="fas fa-chess-board"></i><p>Еще не было ходов</p></div>';
+        return;
+    }
     
     // Группируем ходы по парам (белые + черные)
     for (let i = 0; i < moveHistory.length; i += 2) {
@@ -1006,16 +1203,13 @@ function updateMoveHistory(moveHistory) {
 // Обновить чат
 function updateChat(chatMessages) {
     const chatContainer = document.getElementById('chat-messages');
-    chatContainer.innerHTML = '';
     
-    // Добавляем системное сообщение, если чат пустой
     if (!chatMessages || chatMessages.length === 0) {
-        const systemMessage = document.createElement('div');
-        systemMessage.className = 'system-message';
-        systemMessage.textContent = 'Игра началась. Удачной игры!';
-        chatContainer.appendChild(systemMessage);
+        chatContainer.innerHTML = '<div class="system-message">Игра началась. Удачной игры!</div>';
         return;
     }
+    
+    chatContainer.innerHTML = '';
     
     chatMessages.forEach(message => {
         const messageElement = document.createElement('div');
@@ -1050,9 +1244,13 @@ function sendChatMessage() {
         timestamp: Date.now()
     });
     
-    currentGameRef.update({ chat: chat })
+    currentGameRef.update({ 
+        chat: chat,
+        lastUpdate: Date.now()
+    })
         .then(() => {
             chatInput.value = '';
+            chatInput.focus();
         })
         .catch(error => {
             console.error('Ошибка отправки сообщения:', error);
@@ -1070,7 +1268,8 @@ function offerSurrender() {
         currentGameRef.update({
             status: 'finished',
             winner: winner,
-            finishedAt: Date.now()
+            finishedAt: Date.now(),
+            lastUpdate: Date.now()
         })
         .then(() => {
             toastr.info('Вы сдались');
@@ -1086,7 +1285,8 @@ function offerDraw() {
     if (!currentGameRef || !currentGame) return;
     
     currentGameRef.update({
-        drawOffered: currentUser.uid
+        drawOffered: currentUser.uid,
+        lastUpdate: Date.now()
     })
     .then(() => {
         toastr.info('Предложение ничьи отправлено');
@@ -1104,7 +1304,8 @@ function acceptDraw() {
         status: 'finished',
         winner: 'draw',
         finishedAt: Date.now(),
-        drawOffered: null
+        drawOffered: null,
+        lastUpdate: Date.now()
     })
     .then(() => {
         document.getElementById('draw-offer-modal').classList.remove('active');
@@ -1120,7 +1321,8 @@ function declineDraw() {
     if (!currentGameRef) return;
     
     currentGameRef.update({
-        drawOffered: null
+        drawOffered: null,
+        lastUpdate: Date.now()
     })
     .then(() => {
         document.getElementById('draw-offer-modal').classList.remove('active');
@@ -1136,7 +1338,8 @@ function offerRematch() {
     if (!currentGameRef || !currentGame) return;
     
     currentGameRef.update({
-        rematchOffered: currentUser.uid
+        rematchOffered: currentUser.uid,
+        lastUpdate: Date.now()
     })
     .then(() => {
         toastr.info('Предложение реванша отправлено');
@@ -1172,8 +1375,11 @@ function acceptRematch() {
         startedAt: Date.now(),
         board: initializeChessBoard(),
         turn: 'white',
+        whiteTime: currentGame.timeControl,
+        blackTime: currentGame.timeControl,
         moveHistory: [],
-        chat: []
+        chat: [],
+        lastUpdate: Date.now()
     };
     
     newGameRef.set(gameData)
@@ -1206,7 +1412,8 @@ function declineRematch() {
     if (!currentGameRef) return;
     
     currentGameRef.update({
-        rematchOffered: null
+        rematchOffered: null,
+        lastUpdate: Date.now()
     })
     .then(() => {
         document.getElementById('rematch-modal').classList.remove('active');
@@ -1244,7 +1451,7 @@ function showModal(modalId) {
 
 // Покинуть игру
 function leaveGame() {
-    if (currentGameListener) {
+    if (currentGameListener && currentGameRef) {
         currentGameRef.off('value', currentGameListener);
         currentGameListener = null;
     }
