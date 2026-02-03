@@ -6,6 +6,8 @@
     <title>NeoCascadeChess - Игра в шахматы с друзьями</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Добавляем шахматные иконки Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Roboto+Slab:wght@300;400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
 </head>
@@ -13,7 +15,7 @@
     <div class="app-container">
         <!-- Главный экран с аутентификацией -->
         <div id="auth-screen" class="screen active">
-            <div class="glass-container">
+            <div class="glass-container auth-container">
                 <div class="logo-container">
                     <div class="logo">
                         <i class="fas fa-chess-queen"></i>
@@ -148,11 +150,11 @@
                     <div class="setting-group">
                         <label for="time-control">Контроль времени:</label>
                         <select id="time-control">
-                            <option value="none">Без ограничения</option>
-                            <option value="10">10 минут</option>
-                            <option value="15" selected>15 минут</option>
-                            <option value="30">30 минут</option>
-                            <option value="60">1 час</option>
+                            <option value="0">Без ограничения</option>
+                            <option value="600">10 минут</option>
+                            <option value="900" selected>15 минут</option>
+                            <option value="1800">30 минут</option>
+                            <option value="3600">1 час</option>
                         </select>
                     </div>
                     
@@ -183,13 +185,13 @@
                     <p>Отправьте этот код другу, чтобы он мог присоединиться к игре:</p>
                     
                     <div class="game-code-container">
-                        <div class="game-code" id="game-code-display">ABCD12</div>
+                        <div class="game-code" id="game-code-display">123456</div>
                         <button id="copy-code-btn" class="icon-btn">
                             <i class="fas fa-copy"></i>
                         </button>
                     </div>
                     
-                    <p class="invite-note">Игра начнется, когда ваш друг присоединится</p>
+                    <p class="invite-note" id="invite-status">Ожидание соперника...</p>
                     
                     <div class="invite-actions">
                         <button id="start-game-btn" class="primary-btn" disabled>
@@ -218,7 +220,7 @@
                     <p>Попросите код у друга, создавшего игру</p>
                     
                     <div class="code-input-container">
-                        <input type="text" id="game-code-input" placeholder="Введите 6-значный код" maxlength="6">
+                        <input type="text" id="game-code-input" placeholder="Введите 6-значный код" maxlength="6" pattern="[0-9]*" inputmode="numeric">
                         <button id="join-game-btn" class="primary-btn">
                             <i class="fas fa-sign-in-alt"></i> Присоединиться
                         </button>
@@ -257,7 +259,7 @@
                     </div>
                     
                     <div class="game-status">
-                        <div class="game-code-small" id="game-code-small">ABCD12</div>
+                        <div class="game-code-small" id="game-code-small">123456</div>
                         <div class="game-turn" id="current-turn">Ход белых</div>
                         <div class="game-result" id="game-result"></div>
                     </div>
